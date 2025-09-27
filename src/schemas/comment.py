@@ -1,5 +1,7 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, HttpUrl, validator, field_validator
-from typing import Optional
+from typing import Optional, List
 import re
 
 USERNAME_REGEX = r"^[a-zA-Z0-9]{1,60}$"
@@ -13,6 +15,7 @@ class CommentCreateSchema(BaseModel):
     home_page: Optional[HttpUrl] = None
     captcha: str
     text: str
+    parent_id: Optional[int] = None
 
     # Проверка User name
     @field_validator("user_name")
@@ -21,6 +24,7 @@ class CommentCreateSchema(BaseModel):
             raise ValueError(
                 "User name must be between 1 and 60 characters long and contain only letters and numbers"
             )
+        return value
 
     # Проверка CAPTCHA
     @field_validator("captcha")
@@ -29,6 +33,7 @@ class CommentCreateSchema(BaseModel):
             raise ValueError(
                 "CAPTCHA must be between 1 and 10 characters long and contain only letters and numbers"
             )
+        return value
 
     # Проверка текста на разрешенные HTML-теги
     @field_validator("text")
@@ -38,3 +43,29 @@ class CommentCreateSchema(BaseModel):
             if tag not in ALLOWED_TAGS:
                 raise ValueError(f"HTML tag <{tag}> is not allowed")
         return value
+
+
+class CommentResponseSchema(BaseModel):
+    id: int
+    user_name: str
+    email: EmailStr
+    home_page: Optional[HttpUrl] = None
+    text: str
+    parent_id: Optional[int] = None
+    created_at: datetime
+    file_path: Optional[str] = None
+    file_type: Optional[str] = None
+    image_w: Optional[int] = None
+    image_h: Optional[int] = None
+    replies: List["CommentResponseSchema"] = []
+
+    class Config:
+        from_attributes = True
+
+        """позволяет сериализовать SQLAlchemy 
+        объекты (или любые Python-объекты с атрибутами) 
+        напрямую в JSON через Pydantic
+        
+        Можете читать данные не только из словарей, 
+        но и из объектов с атрибутами, 
+        например из SQLAlchemy моделей"""

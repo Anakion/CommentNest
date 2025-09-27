@@ -1,11 +1,14 @@
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, Any
 
 from fastapi import HTTPException
 
 from src.core.config import Settings
+from src.core.websocket_manager import manager
 from src.models.comment import Comments
 from src.repositories.comment_repo import CommentRepository
-from src.schemas.comment import CommentCreateSchema
+from src.schemas.comment import CommentCreateSchema, CommentResponseSchema
 
 
 @dataclass
@@ -30,9 +33,29 @@ class CommentService:
                 raise HTTPException(status_code=404, detail="Parent comment not found")
 
         try:
-            return await self.repository.create_comment(comment)
+            # Создаем комментарий в базе
+            created_comment = await self.repository.create_comment(comment)
+            
+            # Отправляем новый комментарий через WebSocket
+            await self._broadcast_new_comment(created_comment)
+            
+            return created_comment
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
+            
+    async def _broadcast_new_comment(self, comment: Comments):
+        """Отправляет новый комментарий всем подключенным клиентам"""
+        # Преобразуем комментарий в словарь
+        comment_dict = {
+            "id": str(comment.id),
+            "user_name": comment.user_name,
+            "text": comment.text,
+            "parent_id": str(comment.parent_id) if comment.parent_id else None,
+            "created_at": comment.created_at.isoformat()
+        }
+        
+        # Отправляем через менеджер WebSocket
+        await manager.broadcast_comment(comment_dict)
 
     async def list_comments(
         self,
