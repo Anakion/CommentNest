@@ -55,216 +55,150 @@
     </style>
 </head>
 <body>
-    <h1>CommentNest - Live Comments</h1>
-    
-    <div id="status" class="disconnected">Отключено</div>
-    
+<h1>CommentNest - Live Comments</h1>
+
+<div id="status" class="disconnected">Отключено</div>
+
+<div>
+    <h3>Оставить комментарий:</h3>
     <div>
-        <h3>Оставить комментарий:</h3>
+        <input type="text" id="userName" placeholder="Ваше имя"
+               style="width: 200px; padding: 5px; margin-bottom: 10px; display: block;">
+        <input type="email" id="userEmail" placeholder="Ваш email"
+               style="width: 200px; padding: 5px; margin-bottom: 10px; display: block;">
+        <div style="margin: 10px 0;">
+            <div>Введите капчу: <strong>12345</strong></div>
+            <input type="text" id="captcha" placeholder="Введите капчу" style="width: 200px; padding: 5px;">
+        </div>
+    </div>
+    <div style="margin-top: 10px;">
+        <textarea id="commentText" placeholder="Ваш комментарий"
+                  style="width: 100%; height: 100px; padding: 5px;"></textarea>
+    </div>
+    <button id="sendButton" style="margin-top: 10px; padding: 5px 15px;">Отправить</button>
+</div>
+
+<h3>Комментарии:</h3>
+<div id="comments">
+    <p>Загрузка комментариев...</p>
+</div>
+
+<!-- Модальное окно для ответа на комментарий -->
+<div id="replyModal"
+     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 20px; border-radius: 5px; width: 80%; max-width: 500px;">
+        <h3>Ответ на комментарий <span id="replyToUser"></span></h3>
         <div>
-            <input type="text" id="userName" placeholder="Ваше имя" style="width: 200px; padding: 5px; margin-bottom: 10px; display: block;">
-            <input type="email" id="userEmail" placeholder="Ваш email" style="width: 200px; padding: 5px; margin-bottom: 10px; display: block;">
+            <input type="text" id="replyUserName" placeholder="Ваше имя"
+                   style="width: 100%; padding: 5px; margin-bottom: 10px;">
+            <input type="email" id="replyUserEmail" placeholder="Ваш email"
+                   style="width: 100%; padding: 5px; margin-bottom: 10px;">
             <div style="margin: 10px 0;">
                 <div>Введите капчу: <strong>12345</strong></div>
-                <input type="text" id="captcha" placeholder="Введите капчу" style="width: 200px; padding: 5px;">
+                <input type="text" id="replyCaptcha" placeholder="Введите капчу" style="width: 100%; padding: 5px;">
+            </div>
+            <textarea id="replyText" placeholder="Ваш ответ"
+                      style="width: 100%; height: 100px; padding: 5px; margin-bottom: 10px;"></textarea>
+            <div style="display: flex; justify-content: space-between;">
+                <button id="cancelReply" style="padding: 5px 15px;">Отмена</button>
+                <button id="submitReply" style="padding: 5px 15px;">Отправить ответ</button>
             </div>
         </div>
-        <div style="margin-top: 10px;">
-            <textarea id="commentText" placeholder="Ваш комментарий" style="width: 100%; height: 100px; padding: 5px;"></textarea>
-        </div>
-        <button id="sendButton" style="margin-top: 10px; padding: 5px 15px;">Отправить</button>
     </div>
-    
-    <h3>Комментарии:</h3>
-    <div id="comments">
-        <p>Загрузка комментариев...</p>
-    </div>
-
-    <script>
-        // Элементы страницы
+</div>
+<script>
+        // 1. Получаем элемент для отображения статуса
         const statusEl = document.getElementById('status');
-        const commentsEl = document.getElementById('comments');
-        const userNameInput = document.getElementById('userName');
-        const commentTextInput = document.getElementById('commentText');
-        const sendButton = document.getElementById('sendButton');
-        
-        // URL для WebSocket соединения
+        // 2. Создаём переменную для хранения сокета
+        let socket = null;
+
+        // 3. Функция для подключения к сокету
+        function connectWebSocket() {
+        if (socket) {
+            socket.close();
+        }
+
         const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const wsUrl = wsProtocol + window.location.host + '/api/v1/ws/comments';
-        
-        // Подключение к WebSocket
-        let socket;
-        
-        function connectWebSocket() {
-            socket = new WebSocket(wsUrl);
-            
-            socket.onopen = function() {
-                console.log('WebSocket соединение установлено');
-                statusEl.textContent = 'Подключено';
-                statusEl.className = 'connected';
-                
-                // Загружаем существующие комментарии
-                loadComments();
+        socket = new WebSocket(wsUrl);
+        console.log('Пытаемся подключиться к:', wsUrl);
+
+        // Добавляем обработчик успешного подключения
+        socket.onopen = function() {
+            console.log('WebSocket соединение установлено');
+            statusEl.textContent = 'Подключено';
+            statusEl.className = 'connected';
+        };
+
+        // Добавляем обработчик закрытия соединения
+        socket.onclose = function() {
+            console.log('WebSocket соединение закрыто');
+            statusEl.textContent = 'Отключено';
+            statusEl.className = 'disconnected';
+        };
+
+        // Добавляем обработчик ошибок
+        socket.onerror = function(error) {
+            console.error('WebSocket ошибка:', error);
+            statusEl.textContent = 'Ошибка подключения';
+            statusEl.className = 'disconnected';
             };
-            
+        }
+
+        // Функция для загрузки комментариев
+            async function loadComments() {
+            try {
+                const response = await fetch('/api/v1/comments/with-replies?per_page=50');
+                if (!response.ok) throw new Error('Ошибка загрузки комментариев');
+                const comments = await response.json();
+                displayComments(comments);
+            } catch (error) {
+                console.error('Ошибка:', error);
+                document.getElementById('comments').innerHTML = '<p>Ошибка загрузки комментариев</p>';
+            }
+        }
+
+        // Функция для отображения комментариев
+        function displayComments(comments) {
+            const container = document.getElementById('comments');
+            if (!comments || comments.length === 0) {
+                container.innerHTML = '<p>Комментариев пока нет. Будьте первым!</p>';
+                return;
+            }
+
+            container.innerHTML = comments.map(comment => `
+                <div class="comment" id="comment-${comment.id}">
+                    <div class="user-name">${comment.user_name}</div>
+                    <div class="comment-text">${comment.text}</div>
+                    <div class="timestamp">${new Date(comment.created_at).toLocaleString()}</div>
+                    <button onclick="showReplyModal(${comment.id}, '${comment.user_name}')"
+                            class="reply-btn">Ответить</button>
+                    ${comment.replies ? comment.replies.map(reply => `
+                        <div class="reply">
+                            <div class="user-name">${reply.user_name}</div>
+                            <div class="comment-text">${reply.text}</div>
+                            <div class="timestamp">${new Date(reply.created_at).toLocaleString()}</div>
+                        </div>
+                    `).join('') : ''}
+                </div>
+            `).join('');
+        }
+
+        // Загружаем комментарии при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadComments);
+
+        // Обновляем комментарии при получении нового через WebSocket
+        if (socket) {
             socket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                console.log('Получено сообщение:', data);
-                
                 if (data.type === 'new_comment') {
-                    addCommentToPage(data.data);
+                    loadComments(); // Перезагружаем комментарии
                 }
             };
-            
-            socket.onclose = function() {
-                console.log('WebSocket соединение закрыто');
-                statusEl.textContent = 'Отключено. Переподключение...';
-                statusEl.className = 'disconnected';
-                
-                // Пытаемся переподключиться через 5 секунд
-                setTimeout(connectWebSocket, 5000);
-            };
-            
-            socket.onerror = function(error) {
-                console.error('WebSocket ошибка:', error);
-                statusEl.textContent = 'Ошибка соединения';
-                statusEl.className = 'disconnected';
-            };
         }
-        
-        // Загрузка существующих комментариев
-        async function loadComments() {
-            try {
-                const response = await fetch('/api/v1/comments/');
-                const comments = await response.json();
-                
-                // Очищаем контейнер с комментариями
-                commentsEl.innerHTML = '';
-                
-                if (comments.length === 0) {
-                    commentsEl.innerHTML = '<p>Комментариев пока нет. Будьте первым!</p>';
-                    return;
-                }
-                
-                // Добавляем каждый комментарий на страницу
-                comments.forEach(comment => {
-                    addCommentToPage(comment);
-                });
-            } catch (error) {
-                console.error('Ошибка при загрузке комментариев:', error);
-                commentsEl.innerHTML = '<p>Не удалось загрузить комментарии. Пожалуйста, обновите страницу.</p>';
-            }
-        }
-        
-        // Добавление комментария на страницу
-        function addCommentToPage(comment) {
-            // Проверяем, есть ли уже такой комментарий на странице
-            if (document.getElementById(`comment-${comment.id}`)) {
-                return;
-            }
-            
-            const commentEl = document.createElement('div');
-            commentEl.className = 'comment';
-            commentEl.id = `comment-${comment.id}`;
-            
-            const userNameEl = document.createElement('div');
-            userNameEl.className = 'user-name';
-            userNameEl.textContent = comment.user_name;
-            
-            const textEl = document.createElement('div');
-            textEl.className = 'comment-text';
-            textEl.textContent = comment.text;
-            
-            const timeEl = document.createElement('div');
-            timeEl.className = 'timestamp';
-            timeEl.textContent = new Date(comment.created_at).toLocaleString();
-            
-            commentEl.appendChild(userNameEl);
-            commentEl.appendChild(textEl);
-            commentEl.appendChild(timeEl);
-            
-            // Добавляем комментарий в начало списка
-            if (commentsEl.firstChild) {
-                commentsEl.insertBefore(commentEl, commentsEl.firstChild);
-            } else {
-                commentsEl.appendChild(commentEl);
-            }
-            
-            // Прокручиваем к новому комментарию
-            commentEl.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        // Отправка нового комментария
-        async function sendComment() {
-            const userName = userNameInput.value.trim();
-            const userEmail = document.getElementById('userEmail').value.trim();
-            const captcha = document.getElementById('captcha').value.trim();
-            const commentText = commentTextInput.value.trim();
-            
-            if (!userName) {
-                alert('Пожалуйста, введите ваше имя');
-                return;
-            }
-            
-            if (!userEmail) {
-                alert('Пожалуйста, введите ваш email');
-                return;
-            }
-            
-            // Простая валидация email
-            if (!userEmail.includes('@') || !userEmail.includes('.')) {
-                alert('Пожалуйста, введите корректный email');
-                return;
-            }
-            
-            if (!commentText) {
-                alert('Пожалуйста, введите текст комментария');
-                return;
-            }
-            
-            if (!captcha) {
-                alert('Пожалуйста, введите капчу');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/v1/comments/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        user_name: userName,
-                        email: userEmail,
-                        text: commentText,
-                        captcha: captcha
-                    }),
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Ошибка при отправке комментария');
-                }
-                
-                // Очищаем поле ввода текста
-                commentTextInput.value = '';
-                
-            } catch (error) {
-                console.error('Ошибка при отправке комментария:', error);
-                alert('Не удалось отправить комментарий. Пожалуйста, попробуйте снова.');
-            }
-        }
-        
-        // Обработчики событий
-        sendButton.addEventListener('click', sendComment);
-        commentTextInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendComment();
-            }
-        });
-        
-        // Инициализация WebSocket соединения при загрузке страницы
-        window.onload = connectWebSocket;
-    </script>
+
+        // Добавьте этот вызов в конец скрипта
+        connectWebSocket()
+</script>
 </body>
 </html>
