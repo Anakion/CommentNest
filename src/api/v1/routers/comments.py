@@ -66,12 +66,10 @@ async def list_comments_with_replies(
     # Попробуем достать из кэша
     cached = await cache_service.get_comments_page(page, per_page, sort_by, order)
     if cached is not None and cached != "":
-        print("ccccccasche")
         return json.loads(cached)
 
     # Получаем данные из сервиса (репозитория)
     comments = await service.list_comments_with_replies(page, per_page, sort_by, order)
-    print("Данные из бд")
     # Сериализуем с конвертацией HttpUrl и datetime
     comments_serialized = [
         CommentResponseSchema.model_validate(c).model_dump(mode="json")
