@@ -6,6 +6,9 @@ from src.db.session import get_db
 from src.repositories.comment_repo import CommentRepository
 from src.services.comment_service import CommentService
 
+from src.services.comment_cache_service import CommentCacheService
+from src.core.redis_core import cache_comments
+
 
 async def get_comment_repository(
     session: AsyncSession = Depends(get_db),
@@ -20,3 +23,7 @@ async def get_comment_service(
         repository=comment_repo,
         settings=Settings(),
     )
+
+
+async def get_comment_cache_service() -> CommentCacheService:
+    return CommentCacheService(redis_cache_service=cache_comments)
