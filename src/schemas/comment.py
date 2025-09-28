@@ -22,7 +22,7 @@ class CommentCreateSchema(BaseModel):
     def validate_user_name(cls, value):
         if not re.match(USERNAME_REGEX, value):
             raise ValueError(
-                "User name must be between 1 and 60 characters long and contain only letters and numbers"
+                "User name must be between 1 and 60 characters long and contain only **English letters and numbers**"
             )
         return value
 
