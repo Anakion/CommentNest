@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     SECRET_KEY: str = "4d90daed8f8c54d87c7e003523a5036a"
     ALGORITHM: str = "HS256"
-    ECHO: bool = True
+    ECHO: bool = False
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
 
     @property
     def database_url(self) -> str:
