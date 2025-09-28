@@ -71,6 +71,7 @@ const statusEl = document.getElementById('status');
 let socket = null;
 const expandedComments = new Set();
 
+// ==================== WebSocket ====================
 function connectWebSocket() {
     if (socket) socket.close();
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -78,47 +79,76 @@ function connectWebSocket() {
     socket = new WebSocket(wsUrl);
     console.log('Пытаемся подключиться к:', wsUrl);
 
-    socket.onopen = () => { statusEl.textContent='Подключено'; statusEl.className='connected'; loadComments(); };
-    socket.onclose = () => { statusEl.textContent='Отключено'; statusEl.className='disconnected'; setTimeout(connectWebSocket,5000); };
-    socket.onerror = (e) => { console.error('WebSocket ошибка:', e); statusEl.textContent='Ошибка подключения'; statusEl.className='disconnected'; };
+    socket.onopen = () => {
+        statusEl.textContent = 'Подключено';
+        statusEl.className = 'connected';
+        loadComments();
+    };
+
+    socket.onclose = () => {
+        statusEl.textContent = 'Отключено';
+        statusEl.className = 'disconnected';
+        setTimeout(connectWebSocket, 5000);
+    };
+
+    socket.onerror = (e) => {
+        console.error('WebSocket ошибка:', e);
+        statusEl.textContent = 'Ошибка подключения';
+        statusEl.className = 'disconnected';
+    };
+
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'new_comment') {
             const comment = data.data;
-            if (!comment.parent_id) addMainComment(comment);
-            else addReply(comment);
+            if (!comment.parent_id) addMainComment(comment, true, true); // новые корневые сверху
+            else addReply(comment, true, true); // новые ответы сверху
         }
     };
 }
 
+// ==================== Загрузка комментариев ====================
 async function loadComments() {
     try {
-        const res = await fetch('/api/v1/comments/with-replies?per_page=50');
+        const res = await fetch('/api/v1/comments/with-replies?per_page=50&sort_by=created_at&order=desc');
         if (!res.ok) throw new Error('Ошибка загрузки комментариев');
         const comments = await res.json();
         displayComments(comments);
     } catch(e) {
         console.error('Ошибка:', e);
-        document.getElementById('comments').innerHTML='<p>Ошибка загрузки комментариев</p>';
+        document.getElementById('comments').innerHTML = '<p>Ошибка загрузки комментариев</p>';
     }
 }
 
+// ==================== Отображение комментариев ====================
 function displayComments(comments) {
     const container = document.getElementById('comments');
-    if (!comments || comments.length===0){ container.innerHTML='<p>Комментариев пока нет. Будьте первым!</p>'; return; }
-    container.innerHTML='';
+    if (!comments || comments.length === 0){
+        container.innerHTML = '<p>Комментариев пока нет. Будьте первым!</p>';
+        return;
+    }
+    container.innerHTML = '';
+
+    // выводим корневые комментарии в порядке API (desc)
     comments.forEach(comment => {
-        addMainComment(comment, false);
-        if(comment.replies) comment.replies.forEach(reply => addReply(reply, false));
+        addMainComment(comment, false, false); // scroll=false, вставка в конец
+        if (comment.replies) {
+            comment.replies
+                .sort((a,b) => new Date(b.created_at) - new Date(a.created_at)) // новые ответы сверху
+                .forEach(reply => addReply(reply, false, false)); // scroll=false, вставка в конец
+        }
     });
 }
 
-function addMainComment(comment, scroll=true) {
+// ==================== Добавление корневого комментария ====================
+function addMainComment(comment, scroll = true, insertAtStart = true) {
     const container = document.getElementById('comments');
     if (document.getElementById(`comment-${comment.id}`)) return;
 
-    const hasReplies = comment.replies && comment.replies.length>0;
-    const arrowHtml = hasReplies ? '<div class="toggle-replies collapsed"></div>' : '<div style="width:24px;margin-right:10px;"></div>';
+    const hasReplies = comment.replies && comment.replies.length > 0;
+    const arrowHtml = hasReplies
+        ? '<div class="toggle-replies collapsed"></div>'
+        : '<div style="width:24px;margin-right:10px;"></div>';
 
     const html = `
         <div class="comment" id="comment-${comment.id}">
@@ -134,24 +164,26 @@ function addMainComment(comment, scroll=true) {
             ${hasReplies ? `<div class="replies-container"></div>` : ''}
         </div>`;
 
-    container.insertAdjacentHTML('afterbegin', html);
-    if(scroll) container.scrollIntoView({behavior:'smooth'});
+    if (insertAtStart) container.insertAdjacentHTML('afterbegin', html);
+    else container.insertAdjacentHTML('beforeend', html);
+
+    if (scroll) container.scrollIntoView({ behavior: 'smooth' });
 }
 
-function addReply(reply, scroll=true){
+// ==================== Добавление ответа ====================
+function addReply(reply, scroll = true, insertAtStart = true){
     const parent = document.getElementById(`comment-${reply.parent_id}`);
-    if(!parent) return;
+    if (!parent) return;
 
     let repliesContainer = parent.querySelector('.replies-container');
-    if(!repliesContainer){
+    if (!repliesContainer){
         repliesContainer = document.createElement('div');
         repliesContainer.classList.add('replies-container');
         parent.appendChild(repliesContainer);
 
-        // добавляем стрелку, если её не было
         const header = parent.querySelector('.comment-header');
         const toggle = header.querySelector('.toggle-replies');
-        if(!toggle){
+        if (!toggle){
             const newToggle = document.createElement('div');
             newToggle.classList.add('toggle-replies','expanded');
             newToggle.onclick = (e)=>{ e.stopPropagation(); toggleReplies(header); };
@@ -159,7 +191,7 @@ function addReply(reply, scroll=true){
         }
     }
 
-    if(repliesContainer.querySelector(`#reply-${reply.id}`)) return;
+    if (repliesContainer.querySelector(`#reply-${reply.id}`)) return;
 
     const html = `
         <div class="reply" id="reply-${reply.id}">
@@ -168,36 +200,48 @@ function addReply(reply, scroll=true){
             <div class="timestamp">${new Date(reply.created_at).toLocaleString()}</div>
         </div>`;
 
-    repliesContainer.insertAdjacentHTML('beforeend', html);
+    if (insertAtStart) repliesContainer.insertAdjacentHTML('afterbegin', html);
+    else repliesContainer.insertAdjacentHTML('beforeend', html);
+
     repliesContainer.classList.add('visible');
-    if(scroll) repliesContainer.scrollIntoView({behavior:'smooth'});
+    if (scroll) repliesContainer.scrollIntoView({ behavior: 'smooth' });
 }
 
+// ==================== Остальные функции ====================
 function toggleReplies(element){
     const container = element.closest('.comment').querySelector('.replies-container');
     const toggleBtn = element.querySelector('.toggle-replies');
-    if(container && toggleBtn){
+    if (container && toggleBtn){
         container.classList.toggle('visible');
         toggleBtn.classList.toggle('collapsed');
         toggleBtn.classList.toggle('expanded');
         const id = element.closest('.comment').id;
-        if(container.classList.contains('visible')) expandedComments.add(id);
+        if (container.classList.contains('visible')) expandedComments.add(id);
         else expandedComments.delete(id);
     }
 }
 
-function showReplyModal(commentId,userName){
-    const modal=document.getElementById('replyModal');
-    document.getElementById('replyToUser').textContent=userName;
-    document.getElementById('replyCommentId').value=commentId;
-    modal.style.display='flex';
-    document.getElementById('cancelReply').onclick=()=>{ modal.style.display='none'; };
-    modal.onclick=(e)=>{ if(e.target===modal) modal.style.display='none'; };
+function showReplyModal(commentId, userName){
+    const modal = document.getElementById('replyModal');
+    document.getElementById('replyToUser').textContent = userName;
+    document.getElementById('replyCommentId').value = commentId;
+    modal.style.display = 'flex';
+    document.getElementById('cancelReply').onclick = ()=>{ modal.style.display='none'; };
+    modal.onclick = (e)=>{ if (e.target === modal) modal.style.display='none'; };
 }
 
-function escapeHtml(unsafe){ if(!unsafe) return ''; return unsafe.toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
+function escapeHtml(unsafe){
+    if (!unsafe) return '';
+    return unsafe.toString()
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+}
 
-document.addEventListener('DOMContentLoaded',()=>{
+// ==================== События DOM ====================
+document.addEventListener('DOMContentLoaded', ()=>{
     connectWebSocket();
 
     document.getElementById('sendButton').addEventListener('click', async ()=>{
@@ -205,17 +249,34 @@ document.addEventListener('DOMContentLoaded',()=>{
         const userEmail = document.getElementById('userEmail').value.trim();
         const commentText = document.getElementById('commentText').value.trim();
         const captcha = document.getElementById('captcha').value.trim();
-        if(!userName||!userEmail||!commentText||captcha!=='12345'){ alert('Пожалуйста, заполните все поля и введите правильную капчу'); return; }
+        if (!userName || !userEmail || !commentText || captcha !== '12345'){
+            alert('Пожалуйста, заполните все поля и введите правильную капчу');
+            return;
+        }
 
-        const payload={ user_name:userName, email:userEmail, text:commentText, captcha, parent_id:null };
-        console.log("Отправка payload комментария:",payload);
+        const payload = { user_name:userName, email:userEmail, text:commentText, captcha, parent_id:null };
 
-        try{
-            const response = await fetch('/api/v1/comments/',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        try {
+            const response = await fetch('/api/v1/comments/',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify(payload)
+            });
             const data = await response.json();
-            if(response.ok){ document.getElementById('commentText').value=''; document.getElementById('captcha').value=''; }
-            else{ let msg=''; if(data.detail) msg=typeof data.detail==='string'?data.detail:Object.values(data.detail).flat().join('\n'); else msg='Ошибка при отправке комментария'; alert(msg); }
-        } catch(e){ console.error('Ошибка:',e); alert('Произошла ошибка при отправке комментария'); }
+            if (response.ok){
+                document.getElementById('commentText').value='';
+                document.getElementById('captcha').value='';
+            } else {
+                let msg = '';
+                if (data.detail)
+                    msg = typeof data.detail==='string' ? data.detail : Object.values(data.detail).flat().join('\n');
+                else msg = 'Ошибка при отправке комментария';
+                alert(msg);
+            }
+        } catch(e){
+            console.error('Ошибка:', e);
+            alert('Произошла ошибка при отправке комментария');
+        }
     });
 
     document.getElementById('submitReply').addEventListener('click', async ()=>{
@@ -224,19 +285,39 @@ document.addEventListener('DOMContentLoaded',()=>{
         const replyText = document.getElementById('replyText').value.trim();
         const captcha = document.getElementById('replyCaptcha').value.trim();
         const parentId = document.getElementById('replyCommentId').value;
-        if(!userName||!userEmail||!replyText||captcha!=='12345'){ alert('Пожалуйста, заполните все поля и введите правильную капчу'); return; }
+        if (!userName || !userEmail || !replyText || captcha !== '12345'){
+            alert('Пожалуйста, заполните все поля и введите правильную капчу');
+            return;
+        }
 
-        const payload={ user_name:userName, email:userEmail, text:replyText, captcha, parent_id:parentId };
-        console.log("Отправка payload ответа:",payload);
+        const payload = { user_name:userName, email:userEmail, text:replyText, captcha, parent_id:parentId };
 
-        try{
-            const response = await fetch('/api/v1/comments/',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        try {
+            const response = await fetch('/api/v1/comments/',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify(payload)
+            });
             const data = await response.json();
-            if(response.ok){ document.getElementById('replyModal').style.display='none'; document.getElementById('replyText').value=''; document.getElementById('replyCaptcha').value=''; }
-            else{ let msg=''; if(data.detail) msg=typeof data.detail==='string'?data.detail:Object.values(data.detail).flat().join('\n'); else msg='Ошибка при отправке ответа'; alert(msg); }
-        } catch(e){ console.error('Ошибка:',e); alert('Произошла ошибка при отправке ответа'); }
+            if (response.ok){
+                document.getElementById('replyModal').style.display='none';
+                document.getElementById('replyText').value='';
+                document.getElementById('replyCaptcha').value='';
+            } else {
+                let msg = '';
+                if (data.detail)
+                    msg = typeof data.detail==='string' ? data.detail : Object.values(data.detail).flat().join('\n');
+                else msg = 'Ошибка при отправке ответа';
+                alert(msg);
+            }
+        } catch(e){
+            console.error('Ошибка:', e);
+            alert('Произошла ошибка при отправке ответа');
+        }
     });
 });
 </script>
+
+
 </body>
 </html>
