@@ -135,6 +135,7 @@ async function loadComments() {
         document.getElementById('comments').innerHTML = '<p>Ошибка загрузки комментариев</p>';
     }
 }
+
 function displayComments(comments) {
     const container = document.getElementById('comments');
     if (!comments || comments.length === 0){
@@ -150,6 +151,7 @@ function displayComments(comments) {
         }
     });
 }
+
 function addMainComment(comment, scroll=true, insertAtStart=true){
     const container = document.getElementById('comments');
     if(document.getElementById(`comment-${comment.id}`)) return;
@@ -172,6 +174,7 @@ function addMainComment(comment, scroll=true, insertAtStart=true){
     else container.insertAdjacentHTML('beforeend',html);
     if(scroll) container.scrollIntoView({behavior:'smooth'});
 }
+
 function addReply(reply, scroll=true, insertAtStart=true){
     const parent = document.getElementById(`comment-${reply.parent_id}`);
     if(!parent) return;
@@ -215,14 +218,32 @@ function toggleReplies(element){
         else expandedComments.delete(id);
     }
 }
+
 function showReplyModal(commentId, userName){
     const modal = document.getElementById('replyModal');
     document.getElementById('replyToUser').textContent = userName;
     document.getElementById('replyCommentId').value = commentId;
+
+    // Очищаем поля и ошибки при открытии модального окна
+    document.getElementById('replyUserName').value = '';
+    document.getElementById('replyUserEmail').value = '';
+    document.getElementById('replyText').value = '';
+    document.getElementById('replyCaptcha').value = '';
+    clearErrors('reply');
+
     modal.style.display='flex';
-    document.getElementById('cancelReply').onclick=()=>{modal.style.display='none';};
-    modal.onclick=(e)=>{if(e.target===modal) modal.style.display='none';};
+    document.getElementById('cancelReply').onclick=()=>{
+        modal.style.display='none';
+        clearErrors('reply');
+    };
+    modal.onclick=(e)=>{
+        if(e.target===modal) {
+            modal.style.display='none';
+            clearErrors('reply');
+        }
+    };
 }
+
 function escapeHtml(unsafe){
     if(!unsafe) return '';
     return unsafe.toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
@@ -231,36 +252,49 @@ function escapeHtml(unsafe){
 
 // ==================== Ошибки полей ====================
 function clearErrors(prefix=''){
-    ['userName','userEmail','commentText','captcha'].forEach(f=>{
-        const err = document.getElementById(prefix+f+'Error');
-        if(err) err.textContent='';
+    const fields = ['userName','userEmail','commentText','captcha'];
+    fields.forEach(field => {
+        const errEl = document.getElementById(prefix + (prefix ? field.charAt(0).toUpperCase() + field.slice(1) : field) + 'Error');
+        if(errEl) errEl.textContent = '';
     });
 }
+
 function showErrors(errors, prefix=''){
     clearErrors(prefix);
     if(!errors || !Array.isArray(errors)) return;
-    errors.forEach(e=>{
-        const map = {user_name:'userName', email:'userEmail', text:'commentText', captcha:'captcha'};
-        const field = map[e.loc[1]];
-        if(field){
-            const errEl = document.getElementById(prefix+field+'Error');
-            if(errEl) errEl.textContent = e.msg;
+
+    const fieldMap = {
+        'user_name': prefix ? 'replyUserName' : 'userName',
+        'email': prefix ? 'replyUserEmail' : 'userEmail',
+        'text': prefix ? 'replyText' : 'commentText',
+        'captcha': prefix ? 'replyCaptcha' : 'captcha'
+    };
+
+    errors.forEach(error => {
+        const fieldName = error.loc && error.loc[1];
+        if(fieldName && fieldMap[fieldName]) {
+            const errorEl = document.getElementById(fieldMap[fieldName] + 'Error');
+            if(errorEl) {
+                errorEl.textContent = error.msg;
+            }
         }
     });
 }
 
 // ==================== События DOM ====================
 document.addEventListener('DOMContentLoaded',()=>{
+
     connectWebSocket();
 
-    // Отправка нового комментария
+    // Главный комментарий
     document.getElementById('sendButton').addEventListener('click', async()=>{
-        const userName = document.getElementById('userName').value.trim();
-        const userEmail = document.getElementById('userEmail').value.trim();
-        const commentText = document.getElementById('commentText').value.trim();
-        const captcha = document.getElementById('captcha').value.trim();
-        const payload = {user_name:userName,email:userEmail,text:commentText,captcha,parent_id:null};
-
+        const payload = {
+            user_name: document.getElementById('userName').value.trim(),
+            email: document.getElementById('userEmail').value.trim(),
+            text: document.getElementById('commentText').value.trim(),
+            captcha: document.getElementById('captcha').value.trim(),
+            parent_id: null
+        };
         try{
             const response = await fetch('/api/v1/comments/',{
                 method:'POST',
@@ -268,7 +302,7 @@ document.addEventListener('DOMContentLoaded',()=>{
                 body:JSON.stringify(payload)
             });
             const data = await response.json();
-            console.log('Ответ сервера:', data);
+            console.log('Ответ сервера (main):', data);
             if(response.ok){
                 document.getElementById('commentText').value='';
                 document.getElementById('captcha').value='';
@@ -277,20 +311,19 @@ document.addEventListener('DOMContentLoaded',()=>{
                 showErrors(data.detail || []);
             }
         } catch(e){
-            console.error('Ошибка:',e);
-            alert('Произошла ошибка при отправке комментария');
+            console.error('Ошибка:', e);
         }
     });
 
-    // Отправка ответа
+    // Ответ на комментарий
     document.getElementById('submitReply').addEventListener('click', async()=>{
-        const userName = document.getElementById('replyUserName').value.trim();
-        const userEmail = document.getElementById('replyUserEmail').value.trim();
-        const replyText = document.getElementById('replyText').value.trim();
-        const captcha = document.getElementById('replyCaptcha').value.trim();
-        const parentId = document.getElementById('replyCommentId').value;
-        const payload = {user_name:userName,email:userEmail,text:replyText,captcha,parent_id:parentId};
-
+        const payload = {
+            user_name: document.getElementById('replyUserName').value.trim(),
+            email: document.getElementById('replyUserEmail').value.trim(),
+            text: document.getElementById('replyText').value.trim(),
+            captcha: document.getElementById('replyCaptcha').value.trim(),
+            parent_id: document.getElementById('replyCommentId').value
+        };
         try{
             const response = await fetch('/api/v1/comments/',{
                 method:'POST',
@@ -309,9 +342,9 @@ document.addEventListener('DOMContentLoaded',()=>{
             }
         } catch(e){
             console.error('Ошибка:', e);
-            alert('Произошла ошибка при отправке ответа');
         }
     });
+
 });
 </script>
 </body>
