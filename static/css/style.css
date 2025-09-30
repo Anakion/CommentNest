@@ -1,0 +1,21 @@
+body { font-family: Arial, sans-serif; max-width: 800px; margin:0 auto; padding:20px; }
+#comments { margin-top:20px; }
+.comment { margin-bottom:15px; padding:15px; border:1px solid #e0e0e0; border-radius:8px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+.comment-header { display:flex; align-items:center; cursor:pointer; user-select:none; margin-bottom:10px; }
+.toggle-replies { width:24px; height:24px; margin-right:10px; border:2px solid #3498db; border-radius:4px; background:white; color:#3498db; font-weight:bold; display:flex; align-items:center; justify-content:center; cursor:pointer; transition: all 0.2s; flex-shrink:0; }
+.toggle-replies:hover { background:#f0f8ff; }
+.toggle-replies.collapsed::before { content:"+"; }
+.toggle-replies.expanded::before { content:"-"; }
+.replies-container { margin-left:30px; margin-top:10px; overflow:hidden; max-height:0; opacity:0; transition:max-height 0.3s ease-out, opacity 0.3s ease-out; }
+.replies-container.visible { max-height:5000px; opacity:1; }
+.reply { margin-top:10px; padding:10px; border-left:3px solid #3498db; background:#f9f9f9; border-radius:0 4px 4px 0; }
+.user-name { font-weight:bold; color:#2c3e50; }
+.comment-text { margin:10px 0; line-height:1.5; }
+.timestamp { font-size:0.8em; color:#7f8c8d; }
+.reply-btn { background:#3498db; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; font-size:0.9em; }
+.reply-btn:hover { background:#2980b9; }
+#status { padding:10px; margin-bottom:10px; border-radius:4px; text-align:center; }
+.connected { background-color:#d4edda; color:#155724; }
+.disconnected { background-color:#f8d7da; color:#721c24; }
+.field-error { color:red; font-size:0.85em; margin-top:2px; display:block; }
+input, textarea { box-sizing:border-box; }

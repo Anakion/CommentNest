@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommentNest - Live Comments</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<h1>CommentNest - Live Comments</h1>
+<div id="status" class="disconnected">Отключено</div>
+
+<div>
+    <h3>Оставить комментарий:</h3>
+    <div>
+        <input type="text" id="userName" placeholder="Ваше имя" style="width:200px;padding:5px;margin-bottom:2px;">
+        <span id="userNameError" class="field-error"></span>
+    </div>
+    <div>
+        <input type="email" id="userEmail" placeholder="Ваш email" style="width:200px;padding:5px;margin-bottom:2px;">
+        <span id="userEmailError" class="field-error"></span>
+    </div>
+    <div>
+        <div>Введите капчу: <strong>12345</strong></div>
+        <input type="text" id="captcha" placeholder="Введите капчу" style="width:200px;padding:5px;">
+        <span id="captchaError" class="field-error"></span>
+    </div>
+    <div style="margin-top:10px;">
+        <textarea id="commentText" placeholder="Ваш комментарий"
+                  style="width:100%;height:100px;padding:5px;"></textarea>
+        <span id="commentTextError" class="field-error"></span>
+    </div>
+    <button id="sendButton" style="margin-top:10px;padding:5px 15px;">Отправить</button>
+</div>
+
+<h3>Комментарии:</h3>
+<div id="comments"><p>Загрузка комментариев...</p></div>
+
+<!-- Модальное окно ответа -->
+<div id="replyModal"
+     style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+    <div style="background:white;padding:20px;border-radius:5px;width:80%;max-width:500px;">
+        <h3>Ответ на комментарий <span id="replyToUser"></span></h3>
+        <input type="hidden" id="replyCommentId">
+        <div>
+            <input type="text" id="replyUserName" placeholder="Ваше имя"
+                   style="width:100%;padding:5px;margin-bottom:2px;">
+            <span id="replyUserNameError" class="field-error"></span>
+        </div>
+        <div>
+            <input type="email" id="replyUserEmail" placeholder="Ваш email"
+                   style="width:100%;padding:5px;margin-bottom:2px;">
+            <span id="replyUserEmailError" class="field-error"></span>
+        </div>
+        <div>
+            <div>Введите капчу: <strong>12345</strong></div>
+            <input type="text" id="replyCaptcha" placeholder="Введите капчу" style="width:100%;padding:5px;">
+            <span id="replyCaptchaError" class="field-error"></span>
+        </div>
+        <div>
+            <textarea id="replyText" placeholder="Ваш ответ"
+                      style="width:100%;height:100px;padding:5px;margin-bottom:2px;"></textarea>
+            <span id="replyTextError" class="field-error"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+            <button id="cancelReply" style="padding:5px 15px;">Отмена</button>
+            <button id="submitReply" style="padding:5px 15px;">Отправить ответ</button>
+        </div>
+    </div>
+</div>
+<script src="js/script.js"></script>
+</body>
+</html>
